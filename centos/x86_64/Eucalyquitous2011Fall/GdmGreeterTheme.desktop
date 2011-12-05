@@ -1,0 +1,11 @@
+# This is not really a .desktop file like the rest, but it's useful to treat
+# it as such
+
+[GdmGreeterTheme]
+Encoding=UTF-8
+Greeter=eucalyquitous2011fall.xml
+Name=Eucalyquitous Default
+Description=Eucalyquitous 2011 Fall GDM theme.
+Author=Osamu Habuka
+Copyright=Copyright 2011, JEUG
+Screenshot=screenshot.png

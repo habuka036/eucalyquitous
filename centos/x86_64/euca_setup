@@ -1,0 +1,127 @@
+#!/bin/bash
+
+ip="192.168.100.10"
+nm="255.255.0.0"
+nw="192.168.0.0"
+gw="192.168.1.1"
+ns="192.168.1.1"
+min="192.168.100.100"
+max="192.168.100.200"
+
+is_address() {
+   value=$1
+   [[ -n `echo $value | egrep "^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$"` ]] && return 0
+   echo "${value} is invalid."
+   exit 1
+}
+
+usage() {
+   echo "$0: --ip IP_ADDRESS --nm SUBNET_MASK --gw GATEWAY --ns NAME_SERVER --min PUBLICIP_MIN --max PUBLICIP_MAX"
+   exit 1
+}
+
+GETOPT=`getopt -o h -l help,ip:,nm:,gw:,ns:,min:,max: -- $*`
+eval set -- ${GETOPT}
+while [ -n "$1" ]; do
+   case $1 in
+      -h|--help) usage;;
+      --ip) opt_ip=$2; shift 2;;
+      --nm) opt_nm=$2; shift 2;;
+      --gw) opt_gw=$2; shift 2;;
+      --ns) opt_ns=$2; shift 2;;
+      --min) opt_min=$2; shift 2;;
+      --max) opt_max=$2; shift 2;;
+      --) shift; break;;
+      *) echo "Unknown option($1) used."; exit 1;;
+   esac
+done
+
+if [[ -n $opt_ip && -n $opt_nm && -n $opt_gw && -n $opt_ns && -n $opt_min && -n $opt_min ]]; then
+   is_address $opt_ip && ip=$opt_ip
+   is_address $opt_nm && nm=$opt_nm
+   is_address $opt_gw && gw=$opt_gw
+   is_address $opt_ns && ns=$opt_ns
+   is_address $opt_min && min=$opt_min
+   is_address $opt_max && max=$opt_max
+   eval `ipcalc -bmnp $ip $nm`
+   sed -i -e "s|^BROADCAST=.*|BROADCAST=${BROADCAST}|" /etc/sysconfig/network-scripts/ifcfg-eth0
+   sed -i -e "s|^IPADDR=.*|IPADDR=${ip}|" /etc/sysconfig/network-scripts/ifcfg-eth0
+   sed -i -e "s|^NETMASK=.*|NETMASK=${nm}|" /etc/sysconfig/network-scripts/ifcfg-eth0
+   sed -i -e "s|^NETWORK=.*|NETWORK=${NETWORK}|" /etc/sysconfig/network-scripts/ifcfg-eth0
+   sed -i -e "s|^GATEWAY=.*|GATEWAY=${gw}|" /etc/sysconfig/network
+   sed -i -e "s|^nameserver .*|nameserver ${ns}|" /etc/resolv.conf
+   sed -i -e "s|^192\.168\.100\.10 \(.*\)|${ip} \1|" /etc/hosts
+   sed -i -e "s|^subnet .*|subnet ${NETWORK} netmask ${nm} {|" /etc/dhcpd.conf
+   sed -i -e "s|^\(\s*option routers\s*\)192\.168\.100\.10;$|\1${ip};|" /etc/dhcpd.conf
+   sed -i -e "s|^\(\s*option subnet-mask\s*\)255\.255\.0\.0;$|\1${nm};|" /etc/dhcpd.conf
+   sed -i -e "s|^\(\s*option domain-name-servers\s*\)192\.168\.100\.10;$|\1${ns};|" /etc/dhcpd.conf
+   sed -i -e "s|^\(\s*range dynamic-bootp\s*\)1.*;$|\1${min} ${max};|" /etc/dhcpd.conf
+   sed -i -e "s|192\.168\.100\.10|${ip}|" /usr/local/bin/taws_setup
+   /etc/init.d/network restart
+   /etc/init.d/dhcpd restart
+   /etc/init.d/eucalyptus-cloud restart
+   /etc/init.d/eucalyptus-cc cleanrestart
+   /etc/init.d/eucalyptus-nc restart
+   sleep 10
+fi
+
+echo "ip: $ip"
+echo "nm: $nm"
+echo "nw: $nw"
+echo "gw: $gw"
+echo "ns: $ns"
+echo "min: $min"
+echo "max: $max"
+
+wait_count=0
+echo -e "\033[5;32mPlease wait a few minutes...\033[0;39m"
+while [[ -z `grep "Starting admin interface." /var/log/eucalyptus/cloud-output.log*` ]]; do
+   echo "search in progress..."
+   sleep 10;
+   wait_count=$(( ${wait_count} + 1 ));
+   [[ ${wait_count} -gt 10 ]] && break;
+done
+wait_count=0
+while [[ -z `/usr/sbin/lsof -i:8443` ]]; do
+   sleep 10;
+   wait_count=$(( ${wait_count} + 1 ));
+   [[ ${wait_count} -gt 10 ]] && break;
+done
+wait_count=0
+while [[ -z `/usr/sbin/lsof -i:8773` ]]; do
+   sleep 10;
+   wait_count=$(( ${wait_count} + 1 ));
+   [[ ${wait_count} -gt 10 ]] && break;
+done
+wait_count=0
+while [[ -z `/usr/sbin/lsof -i:8774` ]]; do
+   sleep 10;
+   wait_count=$(( ${wait_count} + 1 ));
+   [[ ${wait_count} -gt 10 ]] && break;
+done
+wait_count=0
+while [[ -z `/usr/sbin/lsof -i:8775` ]]; do
+   sleep 10;
+   wait_count=$(( ${wait_count} + 1 ));
+   [[ ${wait_count} -gt 10 ]] && break;
+done
+/usr/bin/ssh -o StrictHostKeyChecking=no $ip 'ls'
+/usr/sbin/euca_conf --register-walrus $ip
+/usr/sbin/euca_conf --register-cluster cluster0 $ip
+/usr/sbin/euca_conf --register-sc cluster0 $ip
+/usr/sbin/euca_conf --register-nodes "${ip}"
+mkdir -p /root/.euca/admin/keypairs
+cd /root/.euca/
+/usr/sbin/euca_conf --get-credentials euca2-admin-x509.zip
+cd ./admin/
+unzip ../euca2-admin-x509.zip
+source eucarc
+/usr/bin/euca-add-keypair key01 > keypairs/key01.pk
+chmod 400 keypairs/key01.pk
+cd /var/lib/eucalyptus/tmp/ttylinux/
+echo 'register ttylinux'
+./register.sh
+#cd /var/lib/eucalyptus/tmp/CentOS-5.6-x86_64-Mini/
+#echo 'register CentOS-5.6-x86_64-Mini'
+#./register.sh
+

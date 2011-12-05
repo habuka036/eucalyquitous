@@ -1,0 +1,41 @@
+#!/bin/sh
+
+USER_NAME=`whoami`
+mkdir -p ~/.euca/admin/keypairs
+cd ~/.euca/
+sudo /usr/sbin/euca_conf --get-credentials euca2-admin-x509.zip
+sudo chown ${USER_NAME}. euca2-admin-x509.zip
+cd ./admin/
+unzip ../euca2-admin-x509.zip
+source eucarc
+/usr/bin/euca-add-keypair key02 > keypairs/key02.pk
+chmod 400 keypairs/key02.pk
+chown -R ${USER_NAME}. ~/.euca
+cd ~/
+unzip /var/lib/eucalyptus/tmp/tAWS-0.6.0beta-linux-x86_64.zip
+chown -R ${USER_NAME}. ~/eclipse
+mkdir -p ~/workspace/.metadata/.plugins/org.eclipse.core.runtime/.settings
+cd ~/workspace/.metadata/.plugins/org.eclipse.core.runtime/.settings
+cat >./jp.co.intellilink.aws.ui.prefs<<EOF_tanacasino
+client=java-library-for-amazon-ec2
+eclipse.preferences.version=1
+service_url=http\://192.168.100.10\:8773/services/Eucalyptus
+EOF_tanacasino
+echo "access_key=${EC2_ACCESS_KEY}" >>./jp.co.intellilink.aws.ui.prefs
+echo "secret_key=${EC2_SECRET_KEY}" >>./jp.co.intellilink.aws.ui.prefs
+chown -R ${USER_NAME}. ~/workspace
+
+# add tanacasino shortcut
+cat > ~/Desktop/tanacasino.desktop << EOF_tanacasinos
+[Desktop Entry]
+Name=tAWS Tanacasino
+Comment=Open Cloud Tools with Eclipse
+Exec=${HOME}/eclipse/eclipse
+Icon=java
+Categories=Application;SystemSetup;X-Red-Hat-Base;
+Type=Application
+Encoding=UTF-8
+Terminal=false
+EOF_tanacasinos
+
+chmod 755 ~/Desktop/tanacasino.desktop

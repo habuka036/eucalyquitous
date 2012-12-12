@@ -5,27 +5,16 @@ timezone Asia/Tokyo
 auth --useshadow --enablemd5
 selinux --disabled
 firewall --disabled
-#repo --name=a-base     --baseurl=http://192.168.136.23/centos/5/os/$basearch
-#repo --name=a-updates  --baseurl=http://192.168.136.23/centos/5/updates/$basearch
-#repo --name=a-extras   --baseurl=http://192.168.136.23/centos/5/extras/$basearch
-#repo --name=a-live     --baseurl=http://192.168.136.23/centos-live/$basearch/live
-#repo --name=euca2ools  --baseurl=http://192.168.136.23/euca2ools/nightly/main/centos/5/$basearch
-#repo --name=eucalyptus --baseurl=http://192.168.136.23/eucalyptus/nightly/main/centos/5/$basearch
-#repo --name=euca2ools  --baseurl=http://192.168.136.23/euca2ools/stable/centos/5/$basearch
-#repo --name=eucalyptus --baseurl=http://192.168.136.23/eucalyptus/2.0.3/yum/centos/$basearch
-#repo --name=a-euca     --baseurl=http://192.168.136.23/eucalyptus/nightly/main/yum/centos/$basearch
-repo --name=a-base     --baseurl=http://192.168.10.10/centos/5/os/$basearch
-repo --name=a-updates  --baseurl=http://192.168.10.10/centos/5/updates/$basearch
-repo --name=a-extras   --baseurl=http://192.168.10.10/centos/5/extras/$basearch
-repo --name=a-live     --baseurl=http://192.168.10.10/centos-live/$basearch/live
-repo --name=euca2ools  --baseurl=http://192.168.10.10/euca2ools/stable/centos/5/$basearch
-repo --name=eucalyptus --baseurl=http://192.168.10.10/eucalyptus/2.0.3/yum/centos/$basearch
-#repo --name=euca2ools  --baseurl=http://192.168.10.10/euca2ools/nightly/main/centos/5/$basearch
-#repo --name=eucalyptus --baseurl=http://192.168.10.10/eucalyptus/nightly/main/centos/5/$basearch
-#repo --name=a-euca     --baseurl=http://192.168.10.10/eucalyptus/nightly/main/yum/centos/$basearch
+repo --name=a-base     --baseurl=http://192.168.136.23/centos/5/os/$basearch
+repo --name=a-updates  --baseurl=http://192.168.136.23/centos/5/updates/$basearch
+repo --name=a-extras   --baseurl=http://192.168.136.23/centos/5/extras/$basearch
+repo --name=a-live     --baseurl=http://192.168.136.23/centos-live/$basearch/live
+repo --name=euca2ools  --baseurl=http://downloads.eucalyptus.com/software/euca2ools/2.1/centos/5/$basearch
+repo --name=eucalyptus --baseurl=http://downloads.eucalyptus.com/software/eucalyptus/nightly/3.2/centos/5/$basearch
+repo --name=epel       --baseurl=http://dl.fedoraproject.org/pub/epel/5/$basearch
 xconfig --startxonboot
-part / --size 4096
-services --enabled=haldaemon,NetworkManager,portmap,sshd,dhcpd,eucalyptus-cloud,eucalyptus-cc,eucalyptus-nc --disabled=anacron,auditd,bluetooth,cpuspeed,cups,gpm,hidd,iptables,ip6tables,isdn,mcstrans,mdmonitor,microcode_ctl,netfs,network,nfslock,pcscd,readahead_early,readahead_later,restorecond,rpcgssd,rpcidmapd,libvirtd
+part / --size 8192
+services --enabled=haldaemon,NetworkManager,portmap,sshd,dhcpd --disabled=anacron,auditd,bluetooth,cpuspeed,cups,gpm,hidd,iptables,ip6tables,isdn,mcstrans,mdmonitor,microcode_ctl,netfs,network,nfslock,pcscd,readahead_early,readahead_later,restorecond,rpcgssd,rpcidmapd,libvirtd,eucalyptus-cloud,eucalyptus-cc,eucalyptus-nc
 
 
 %packages --resolvedeps
@@ -231,9 +220,15 @@ eucalyptus-cc
 eucalyptus-nc
 eucalyptus-sc
 eucalyptus-walrus
-#python26
-#python26-libs
+eucalyptus-admin-tools
+eucalyptus-console
+python26
+python26-libs
+python26-boto
 euca2ools
+eucadw
+eucadw-libs
+python26-tornado
 
 vim-enhanced
 dhcp
@@ -244,7 +239,7 @@ anaconda-runtime
 %post
 
 ## LiveCD version for the link toward the release notes
-VERSION="5.7"
+VERSION="5.8"
 
 ## locales for the Live CD
 PRIMARY_LANGUAGE="ja"
@@ -595,6 +590,11 @@ subnet 192.168.0.0 netmask 255.255.0.0 {
 EOF_dhcpd
 /etc/init.d/dhcpd restart
 
+#sed -i -e 's|^server 0.centos.pool.ntp.org|#server 0.centos.pool.ntp.org|' /etc/ntp.conf
+#sed -i -e 's|^server 1.centos.pool.ntp.org|#server 0.centos.pool.ntp.org|' /etc/ntp.conf
+#sed -i -e 's|^server 2.centos.pool.ntp.org|#server 0.centos.pool.ntp.org|' /etc/ntp.conf
+/etc/init.d/ntpd restart
+
 EOF_rclocal
 
 echo ###################################################################
@@ -697,17 +697,19 @@ cat \$LIVE_ROOT/isolinux/cleaned.txt \$LIVE_ROOT/isolinux/default.txt \$LIVE_ROO
 rm -f \$LIVE_ROOT/isolinux/*.txt
 cp /root/livecd/putasu_splash.jpg \$LIVE_ROOT/isolinux/splash.jpg
 sed -i -e 's|ffffffff|fffed350|' \$LIVE_ROOT/isolinux/isolinux.cfg
+sed -i -e 's|^default vesamenu.c32|default linux1|' \$LIVE_ROOT/isolinux/isolinux.cfg
+sed -i -e 's|^timeout 100|timeout 5|' \$LIVE_ROOT/isolinux/isolinux.cfg
 
 # for Eucalyptus
 mkdir -p ${INSTALL_ROOT}/var/lib/eucalyptus/tmp/
 cp -r /root/livecd/ttylinux ${INSTALL_ROOT}/var/lib/eucalyptus/tmp/
 cp -r /root/livecd/CentOS-5.6-x86_64-Mini ${INSTALL_ROOT}/var/lib/eucalyptus/tmp/CentOS-5.6-x86_64-Mini
 cp -r /root/livecd/Eucalyquitous2011Fall ${INSTALL_ROOT}/usr/share/gdm/themes/
-cp -r /root/livecd/tAWS-0.6.0beta-linux-x86_64.zip ${INSTALL_ROOT}/var/lib/eucalyptus/tmp/
 cp -a /root/livecd/euca_setup ${INSTALL_ROOT}/usr/local/sbin/
-cp -a /root/livecd/taws_setup ${INSTALL_ROOT}/usr/local/bin/
-cp -a /root/livecd/libEucalyptusNC.so ${INSTALL_ROOT}/opt/euca-axis2c/services/EucalyptusNC/
 cp -a /root/livecd/livecd-cdrom-to-disk ${INSTALL_ROOT}/usr/local/sbin/
+#cp -a /root/livecd/Messages_ja_JP.properties ${INSTALL_ROOT}/usr/share/eucalyptus-console/static/custom/
+#cp -a /root/livecd/Messages_ja.properties ${INSTALL_ROOT}/usr/share/eucalyptus-console/static/custom/
+killall -9 libvirtd
 
 EOF_postnochroot
 

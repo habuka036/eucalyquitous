@@ -58,11 +58,8 @@ if [[ -n $opt_ip && -n $opt_nm && -n $opt_gw && -n $opt_ns && -n $opt_min && -n 
    sed -i -e "s|^\(\s*range dynamic-bootp\s*\)1.*;$|\1${min} ${max};|" /etc/dhcpd.conf
    sed -i -e "s|192\.168\.100\.10|${ip}|" /usr/local/bin/taws_setup
    /etc/init.d/network restart
+   /etc/init.d/ntpd restart
    /etc/init.d/dhcpd restart
-   /etc/init.d/eucalyptus-cloud restart
-   /etc/init.d/eucalyptus-cc cleanrestart
-   /etc/init.d/eucalyptus-nc restart
-   sleep 10
 fi
 
 echo "ip: $ip"
@@ -73,42 +70,62 @@ echo "ns: $ns"
 echo "min: $min"
 echo "max: $max"
 
+echo 'MAX_CORES="256"' >> /etc/eucalyptus/eucalyptus.conf
+echo 'MAX_MEM="233472"' >> /etc/eucalyptus/eucalyptus.conf
+echo 'NC_WORK_SIZE=50000' >> /etc/eucalyptus/eucalyptus.conf
+echo 'NC_CACHE_SIZE=50000' >> /etc/eucalyptus/eucalyptus.conf
+
+/usr/sbin/euca_conf --initialize
+sleep 10
+/etc/init.d/eucalyptus-cloud restart
+/etc/init.d/eucalyptus-cc cleanrestart
+/etc/init.d/eucalyptus-nc restart
+sleep 10
+
 wait_count=0
 echo -e "\033[5;32mPlease wait a few minutes...\033[0;39m"
 while [[ -z `grep "Starting admin interface." /var/log/eucalyptus/cloud-output.log*` ]]; do
-   echo "search in progress..."
+   echo "search in progress... (${wait_count})"
    sleep 10;
    wait_count=$(( ${wait_count} + 1 ));
    [[ ${wait_count} -gt 10 ]] && break;
 done
 wait_count=0
 while [[ -z `/usr/sbin/lsof -i:8443` ]]; do
+   echo "search in progress... (${wait_count})"
    sleep 10;
    wait_count=$(( ${wait_count} + 1 ));
    [[ ${wait_count} -gt 10 ]] && break;
 done
 wait_count=0
 while [[ -z `/usr/sbin/lsof -i:8773` ]]; do
+   echo "search in progress... (${wait_count})"
    sleep 10;
    wait_count=$(( ${wait_count} + 1 ));
    [[ ${wait_count} -gt 10 ]] && break;
 done
 wait_count=0
 while [[ -z `/usr/sbin/lsof -i:8774` ]]; do
+   echo "search in progress... (${wait_count})"
    sleep 10;
    wait_count=$(( ${wait_count} + 1 ));
    [[ ${wait_count} -gt 10 ]] && break;
 done
 wait_count=0
 while [[ -z `/usr/sbin/lsof -i:8775` ]]; do
+   echo "search in progress... (${wait_count})"
    sleep 10;
    wait_count=$(( ${wait_count} + 1 ));
    [[ ${wait_count} -gt 10 ]] && break;
 done
 /usr/bin/ssh -o StrictHostKeyChecking=no $ip 'ls'
-/usr/sbin/euca_conf --register-walrus $ip
-/usr/sbin/euca_conf --register-cluster cluster0 $ip
-/usr/sbin/euca_conf --register-sc cluster0 $ip
+echo "/usr/sbin/euca_conf --register-walrus --partition walrus --host ${ip} --component walrus0"
+/usr/sbin/euca_conf --register-walrus --partition walrus --host ${ip} --component walrus0
+echo "/usr/sbin/euca_conf --register-cluster --partition cluster0 --host ${ip} --component cc-${ip}"
+/usr/sbin/euca_conf --register-cluster --partition cluster0 --host ${ip} --component cc-${ip}
+echo "/usr/sbin/euca_conf --register-sc --partition cluster0 --host ${ip} --component sc-${ip}"
+/usr/sbin/euca_conf --register-sc --partition cluster0 --host ${ip} --component sc-${ip}
+echo "/usr/sbin/euca_conf --register-nodes \"${ip}\""
 /usr/sbin/euca_conf --register-nodes "${ip}"
 mkdir -p /root/.euca/admin/keypairs
 cd /root/.euca/
@@ -124,4 +141,11 @@ echo 'register ttylinux'
 #cd /var/lib/eucalyptus/tmp/CentOS-5.6-x86_64-Mini/
 #echo 'register CentOS-5.6-x86_64-Mini'
 #./register.sh
+
+echo "GENERATE_CERT=NO" >> /etc/sysconfig/eucalyptus-console
+sed -i -e "s|^clchost.*$|clchost: ${ip}|" /etc/eucalyptus-console/console.ini
+sed -i -e "s|^language.*$|language: ja_JP|" /etc/eucalyptus-console/console.ini
+sed -i -e "s|^sslcert.*$|#&|" /etc/eucalyptus-console/console.ini
+sed -i -e "s|^sslkey.*$|#&|" /etc/eucalyptus-console/console.ini
+/etc/init.d/eucalyptus-console start
 
